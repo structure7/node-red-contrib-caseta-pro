@@ -46,6 +46,12 @@
     <code>device</code> / <code>group</code> messages also carry <code>name</code> (your
     custom name, else the Lutron name) and <code>area</code>:</p>
     <pre>{ type:'output', id:6, level:0, name:'Kitchen Island', area:'Kitchen', raw:'~OUTPUT,6,1,0.00' }</pre>
+    <h3>Topic</h3>
+    <p><code>msg.topic</code> is set to <code>caseta/&lt;type&gt;/&lt;id&gt;</code> &mdash; e.g.
+    <code>caseta/output/6</code>, <code>caseta/device/4</code>, <code>caseta/group/9</code>.
+    The id is omitted when absent (<code>caseta/error</code>, <code>caseta/unknown</code>).
+    Including the type disambiguates the separate zone vs device id namespaces, so you can
+    route on the topic (switch on <code>caseta/output/*</code>) or publish straight to MQTT.</p>
     <h3>Filtering example</h3>
     <p>To act only on a button press, follow with a <b>switch</b> node:</p>
     <pre>msg.payload.type  ==  "device"
