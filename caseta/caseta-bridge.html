@@ -1,0 +1,223 @@
+<script type="text/javascript">
+    RED.nodes.registerType('caseta-bridge', {
+        category: 'config',
+        defaults: {
+            name:    { value: '' },
+            host:    { value: '', required: true },
+            port:    { value: 23, required: true, validate: RED.validators.number() },
+            username:{ value: 'lutron' },
+            password:{ value: 'integration' },
+            integrationReport: { value: '' },
+            names:   { value: '' }   // JSON: { zones:{id:name}, devices:{id:name} }
+        },
+        label: function () {
+            return this.name || ('Caséta @ ' + (this.host || '?'));
+        },
+        oneditprepare: function () {
+            // ---- saved custom names ----
+            var savedNames = { zones: {}, devices: {} };
+            try {
+                var v = $('#node-config-input-names').val();
+                if (v) {
+                    var p = JSON.parse(v);
+                    savedNames.zones = p.zones || {};
+                    savedNames.devices = p.devices || {};
+                }
+            } catch (e) { /* ignore */ }
+
+            function esc(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            // Parse the integration report currently in the textarea.
+            // Returns {zones,devices}, or null if the JSON is invalid.
+            function readReport() {
+                var txt = $('#node-config-input-integrationReport').val();
+                if (!txt || !txt.trim()) { return { zones: [], devices: [] }; }
+                try {
+                    var r = JSON.parse(txt);
+                    var lip = r.LIPIdList || {};
+                    return {
+                        zones: Array.isArray(lip.Zones) ? lip.Zones : [],
+                        devices: Array.isArray(lip.Devices) ? lip.Devices : []
+                    };
+                } catch (e) { return null; }
+            }
+
+            // What's typed in the table right now (so a Refresh doesn't lose edits).
+            function currentEdits() {
+                var m = { zones: {}, devices: {} };
+                $('.caseta-name-input').each(function () {
+                    var val = $(this).val().trim();
+                    if (val) {
+                        var kind = $(this).data('kind');
+                        var id = String($(this).data('id'));
+                        (kind === 'zone' ? m.zones : m.devices)[id] = val;
+                    }
+                });
+                return m;
+            }
+
+            function buildTable() {
+                var rep = readReport();
+                var $c = $('#caseta-names-table');
+                $c.empty();
+                if (rep === null) {
+                    $c.html('<div class="form-tips" style="margin-top:8px">The integration ' +
+                        'report on the Connection tab is not valid JSON. Fix it, then click Refresh.</div>');
+                    return;
+                }
+                if (!rep.zones.length && !rep.devices.length) {
+                    $c.html('<div class="form-tips" style="margin-top:8px">Paste your integration ' +
+                        'report on the Connection tab, then click Refresh to list devices here.</div>');
+                    return;
+                }
+                // saved names, overlaid with any in-progress edits (edits win).
+                var edits = currentEdits();
+                var merged = {
+                    zones: $.extend({}, savedNames.zones, edits.zones),
+                    devices: $.extend({}, savedNames.devices, edits.devices)
+                };
+
+                var h = ['<table class="caseta-names" style="width:100%; border-collapse:collapse; font-size:12px;">'];
+                h.push('<thead><tr style="text-align:left; border-bottom:1px solid var(--red-ui-secondary-border-color,#ccc);">' +
+                    '<th style="padding:3px 6px;">Kind</th><th style="padding:3px 6px;">ID</th>' +
+                    '<th style="padding:3px 6px;">Lutron name</th><th style="padding:3px 6px;">Area</th>' +
+                    '<th style="padding:3px 6px;">Your name</th></tr></thead><tbody>');
+
+                function addRows(list, kind) {
+                    list.forEach(function (it) {
+                        if (!it || it.ID == null) { return; }
+                        var id = String(it.ID);
+                        var cur = (kind === 'zone' ? merged.zones : merged.devices)[id] || '';
+                        h.push('<tr>' +
+                            '<td style="padding:3px 6px;">' + (kind === 'zone' ? 'Zone' : 'Device') + '</td>' +
+                            '<td style="padding:3px 6px;">' + id + '</td>' +
+                            '<td style="padding:3px 6px;">' + esc(it.Name) + '</td>' +
+                            '<td style="padding:3px 6px;">' + esc(it.Area && it.Area.Name) + '</td>' +
+                            '<td style="padding:3px 6px;"><input type="text" class="caseta-name-input" ' +
+                            'data-kind="' + kind + '" data-id="' + id + '" value="' + esc(cur) + '" style="width:95%"></td>' +
+                            '</tr>');
+                    });
+                }
+                addRows(rep.zones, 'zone');
+                addRows(rep.devices, 'device');
+                h.push('</tbody></table>');
+                $c.html(h.join(''));
+            }
+
+            // ---- tabs ----
+            var tabs = RED.tabs.create({
+                id: 'node-config-caseta-tabs',
+                onchange: function (tab) {
+                    $('#node-config-caseta-tabs-content').children().hide();
+                    $('#' + tab.id).show();
+                    if (tab.id === 'caseta-tab-names') { buildTable(); }
+                }
+            });
+            tabs.addTab({ id: 'caseta-tab-connection', label: 'Connection' });
+            tabs.addTab({ id: 'caseta-tab-names', label: 'Names' });
+
+            $('#caseta-names-refresh').on('click', function (e) {
+                e.preventDefault();
+                buildTable();
+            });
+        },
+        oneditsave: function () {
+            // Only overwrite stored names if the Names tab was actually built this
+            // session (otherwise leave the saved value untouched).
+            if ($('.caseta-name-input').length === 0) { return; }
+            var m = { zones: {}, devices: {} };
+            $('.caseta-name-input').each(function () {
+                var val = $(this).val().trim();
+                if (val) {
+                    var kind = $(this).data('kind');
+                    var id = String($(this).data('id'));
+                    (kind === 'zone' ? m.zones : m.devices)[id] = val;
+                }
+            });
+            $('#node-config-input-names').val(JSON.stringify(m));
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="caseta-bridge">
+    <div class="form-row">
+        <ul style="min-width:600px; margin-bottom:20px;" id="node-config-caseta-tabs"></ul>
+    </div>
+    <div id="node-config-caseta-tabs-content">
+
+        <div id="caseta-tab-connection" class="caseta-tab">
+            <div class="form-row">
+                <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+                <input type="text" id="node-config-input-name" placeholder="(optional)">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-host"><i class="fa fa-globe"></i> Host</label>
+                <input type="text" id="node-config-input-host" placeholder="192.168.0.104">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-port"><i class="fa fa-plug"></i> Port</label>
+                <input type="text" id="node-config-input-port" placeholder="23" style="width:100px">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-username"><i class="fa fa-user"></i> Username</label>
+                <input type="text" id="node-config-input-username" placeholder="lutron">
+            </div>
+            <div class="form-row">
+                <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
+                <input type="password" id="node-config-input-password" placeholder="integration">
+            </div>
+            <div class="form-row" style="margin-bottom:0">
+                <label for="node-config-input-integrationReport" style="vertical-align:top">
+                    <i class="fa fa-file-text-o"></i> Integration<br>Report
+                </label>
+                <textarea id="node-config-input-integrationReport" rows="10"
+                    style="width:70%; font-family:monospace; font-size:11px;"
+                    placeholder='Paste Lutron&apos;s integration report JSON, e.g.&#10;{&#10;  "LIPIdList": {&#10;    "Zones":   [ { "ID": 26, "Name": "Lights", "Area": { "Name": "Tool Room" } } ],&#10;    "Devices": [ { "ID": 4,  "Name": "Pico 1", "Area": { "Name": "Living Room" } } ]&#10;  }&#10;}'></textarea>
+            </div>
+            <div class="form-tips">
+                Zones are OUTPUT devices (dimmers/switches/fans). Devices are button senders
+                (Picos, keypads, motion sensors). The report is optional &mdash; without it the
+                bridge still connects and monitors all events, it just skips zone&nbsp;seeding.
+            </div>
+        </div>
+
+        <div id="caseta-tab-names" class="caseta-tab" style="display:none">
+            <input type="hidden" id="node-config-input-names">
+            <div class="form-row" style="margin-bottom:6px">
+                <span style="color:var(--red-ui-secondary-text-color,#888)">
+                    IDs &amp; Lutron names come from the integration report (read-only).
+                    Fill in <b>Your name</b> to enrich <code>caseta-in</code> messages
+                    (adds <code>name</code> + <code>area</code> to <code>msg.payload</code>).
+                </span>
+                <button id="caseta-names-refresh" class="red-ui-button red-ui-button-small"
+                    style="float:right"><i class="fa fa-refresh"></i> Refresh from report</button>
+            </div>
+            <div id="caseta-names-table" style="max-height:340px; overflow:auto;"></div>
+        </div>
+
+    </div>
+</script>
+
+<script type="text/html" data-help-name="caseta-bridge">
+    <p>Connection to a Lutron Caséta Smart Bridge <b>Pro</b> over the Integration
+    Protocol (raw telnet, port 23). One shared socket serves every <code>caseta-in</code>
+    and <code>caseta-out</code> node.</p>
+    <h3>Connection tab</h3>
+    <dl class="message-properties">
+        <dt>Host</dt><dd>Bridge IP address, e.g. <code>192.168.0.104</code>.</dd>
+        <dt>Port</dt><dd>Default <code>23</code>.</dd>
+        <dt>Username / Password</dt><dd>Lutron's LAN defaults
+            <code>lutron</code> / <code>integration</code>.</dd>
+        <dt>Integration Report</dt><dd>Paste the JSON from Lutron's emailed integration
+            report. Used to seed current zone levels on connect and to populate the Names tab.</dd>
+    </dl>
+    <h3>Names tab</h3>
+    <p>Lists every Zone and Device from the report with its ID and Lutron name. Type your
+    own friendly name in <b>Your name</b> and it will be attached to matching
+    <code>caseta-in</code> messages as <code>msg.payload.name</code> (with the Lutron
+    <code>area</code>). Click <b>Refresh from report</b> after editing the report.</p>
+</script>

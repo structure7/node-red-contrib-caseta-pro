@@ -1,0 +1,54 @@
+<script type="text/javascript">
+    RED.nodes.registerType('caseta-in', {
+        category: 'Caséta',
+        color: '#A6BBCF',
+        defaults: {
+            name:   { value: '' },
+            bridge: { value: '', type: 'caseta-bridge', required: true }
+        },
+        inputs: 0,
+        outputs: 1,
+        icon: 'light.svg',
+        paletteLabel: 'caseta in',
+        label: function () {
+            return this.name || 'caseta in';
+        }
+    });
+</script>
+
+<script type="text/html" data-template-name="caseta-in">
+    <div class="form-row">
+        <label for="node-input-bridge"><i class="fa fa-sitemap"></i> Bridge</label>
+        <input type="text" id="node-input-bridge">
+    </div>
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="caseta in">
+    </div>
+</script>
+
+<script type="text/html" data-help-name="caseta-in">
+    <p>Emits <b>every</b> event streamed by the Caséta bridge. Wire it to a debug node
+    to watch traffic, or to a switch/function node to filter by <code>type</code>/<code>id</code>.</p>
+    <h3>Outputs</h3>
+    <p><code>msg.payload</code> is one of:</p>
+    <ul>
+        <li><code>{ type:'output', id, level, raw }</code> &mdash; zone level changed
+            (app, Pico, schedule, or your own command echo).</li>
+        <li><code>{ type:'device', id, component, action, raw }</code> &mdash; button event.
+            action <code>3</code>=press, <code>4</code>=release; Pico buttons are components 2&ndash;6.</li>
+        <li><code>{ type:'group', id, action, state, raw }</code> &mdash; occupancy.
+            action <code>3</code>=occupancy, state <code>3</code>=occupied, <code>4</code>=unoccupied.</li>
+        <li><code>{ type:'error', raw }</code> &mdash; bridge rejected the last command (non-fatal).</li>
+        <li><code>{ type:'unknown', raw }</code> &mdash; any other <code>~</code> response, passed through.</li>
+    </ul>
+    <p>If the bridge's <b>Names</b> tab has a match for the id, <code>output</code> /
+    <code>device</code> / <code>group</code> messages also carry <code>name</code> (your
+    custom name, else the Lutron name) and <code>area</code>:</p>
+    <pre>{ type:'output', id:6, level:0, name:'Kitchen Island', area:'Kitchen', raw:'~OUTPUT,6,1,0.00' }</pre>
+    <h3>Filtering example</h3>
+    <p>To act only on a button press, follow with a <b>switch</b> node:</p>
+    <pre>msg.payload.type  ==  "device"
+msg.payload.action == 3        // press</pre>
+    <p>The node status mirrors the bridge connection (green = connected).</p>
+</script>

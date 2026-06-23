@@ -1,0 +1,132 @@
+[
+    {
+        "id": "caseta_example_tab",
+        "type": "tab",
+        "label": "Caséta example",
+        "disabled": false,
+        "info": "Basic Caséta Pro demo: monitor all events, and turn a zone on/off.\n\n1. Open the **caseta bridge** config and set your bridge **Host** + paste the integration report.\n2. Edit the **set zone** inject/function with a real zone **id** before using it.\n3. Deploy and watch the debug sidebar."
+    },
+    {
+        "id": "caseta_example_bridge",
+        "type": "caseta-bridge",
+        "name": "Caséta bridge",
+        "host": "192.168.0.104",
+        "port": 23,
+        "username": "lutron",
+        "password": "integration",
+        "integrationReport": ""
+    },
+    {
+        "id": "caseta_example_in",
+        "type": "caseta-in",
+        "z": "caseta_example_tab",
+        "name": "",
+        "bridge": "caseta_example_bridge",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "caseta_example_debug"
+            ]
+        ]
+    },
+    {
+        "id": "caseta_example_debug",
+        "type": "debug",
+        "z": "caseta_example_tab",
+        "name": "all events",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 360,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "caseta_example_inject_on",
+        "type": "inject",
+        "z": "caseta_example_tab",
+        "name": "on (100%)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "topic": "",
+        "payload": "{\"id\":26,\"level\":100}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 200,
+        "wires": [
+            [
+                "caseta_example_out"
+            ]
+        ]
+    },
+    {
+        "id": "caseta_example_inject_off",
+        "type": "inject",
+        "z": "caseta_example_tab",
+        "name": "off (0%)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "topic": "",
+        "payload": "{\"id\":26,\"level\":0}",
+        "payloadType": "json",
+        "x": 150,
+        "y": 260,
+        "wires": [
+            [
+                "caseta_example_out"
+            ]
+        ]
+    },
+    {
+        "id": "caseta_example_inject_dim",
+        "type": "inject",
+        "z": "caseta_example_tab",
+        "name": "dim to 50% over 2s",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "topic": "",
+        "payload": "{\"id\":26,\"level\":50,\"fade\":2}",
+        "payloadType": "json",
+        "x": 170,
+        "y": 320,
+        "wires": [
+            [
+                "caseta_example_out"
+            ]
+        ]
+    },
+    {
+        "id": "caseta_example_out",
+        "type": "caseta-out",
+        "z": "caseta_example_tab",
+        "name": "",
+        "bridge": "caseta_example_bridge",
+        "x": 410,
+        "y": 260,
+        "wires": []
+    }
+]
