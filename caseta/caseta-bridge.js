@@ -17,6 +17,7 @@ module.exports = function (RED) {
     const MAX_RECONNECT_DELAY = 30000;  // backoff cap (ms)
     const INITIAL_RECONNECT_DELAY = 1000;
     const COALESCE_MS = 120;            // per-id trailing debounce for ~OUTPUT bursts
+    const DEFAULT_SEND_GAP_MS = 50;     // min gap between outbound commands (anti-flood)
 
     function CasetaBridgeNode(config) {
         RED.nodes.createNode(this, config);
@@ -26,6 +27,10 @@ module.exports = function (RED) {
         node.port = parseInt(config.port, 10) || 23;
         node.username = config.username || 'lutron';
         node.password = config.password || 'integration';
+        // Minimum spacing between outbound commands; 0 = send as fast as queued.
+        const SEND_GAP_MS = Math.max(0,
+            config.sendGapMs == null || config.sendGapMs === '' ?
+                DEFAULT_SEND_GAP_MS : (parseInt(config.sendGapMs, 10) || 0));
 
         // Event bus that caseta-in / caseta-out nodes subscribe to.
         // 'event'  → parsed hub events (output/device/group/error/unknown)
@@ -97,7 +102,8 @@ module.exports = function (RED) {
         let reconnectTimer = null;
         let authFailed = false;   // wrong creds — stop reconnecting (avoid lockout)
         let closing = false;      // node is being redeployed/shut down
-        const cmdQueue = [];      // commands queued until READY
+        const cmdQueue = [];      // outbound commands, paced SEND_GAP_MS apart (anti-flood)
+        let sendTimer = null;     // pacing timer for the drain loop
         const outputTimers = new Map(); // id -> coalesce timer
 
         node.lastStatus = { fill: 'grey', shape: 'dot', text: 'initializing' };
@@ -117,31 +123,45 @@ module.exports = function (RED) {
             }
         }
 
-        // Public: queue a command (no CRLF) until the bridge is ready, then write it.
-        // NB: named sendCommand (not send) so we don't clobber Node-RED's node.send().
-        node.sendCommand = function (cmd) {
-            if (phase === PHASE.READY) {
-                rawWrite(cmd + '\r\n');
-            } else {
-                cmdQueue.push(cmd);
+        // Send one queued command now, then schedule the rest SEND_GAP_MS apart.
+        // A single command (empty queue) goes out immediately; bursts are paced so we
+        // never flood the bridge — this throttles ALL writers (every caseta-out node and
+        // the connect-time seeding burst) because they share this one queue.
+        function drainQueue() {
+            if (sendTimer || phase !== PHASE.READY || cmdQueue.length === 0) {
+                return;
             }
-        };
-
-        function flushQueue() {
-            while (cmdQueue.length) {
-                rawWrite(cmdQueue.shift() + '\r\n');
+            rawWrite(cmdQueue.shift() + '\r\n');
+            if (cmdQueue.length > 0 && SEND_GAP_MS > 0) {
+                sendTimer = setTimeout(function () {
+                    sendTimer = null;
+                    drainQueue();
+                }, SEND_GAP_MS);
+            } else {
+                // No gap configured: flush the remainder synchronously.
+                while (cmdQueue.length > 0 && phase === PHASE.READY) {
+                    rawWrite(cmdQueue.shift() + '\r\n');
+                }
             }
         }
 
+        // Public: queue a command (no CRLF). Held until ready, then paced out.
+        // NB: named sendCommand (not send) so we don't clobber Node-RED's node.send().
+        node.sendCommand = function (cmd) {
+            cmdQueue.push(cmd);
+            drainQueue();
+        };
+
         function onReady() {
             setStatus('green', 'connected');
-            flushQueue();
-            // Re-seed current levels for every known zone on each (re)connect.
+            // Re-seed current levels for every known zone on each (re)connect —
+            // queued like any command so the burst is paced too.
             node.zones.forEach(function (z) {
                 if (z && z.ID != null) {
-                    rawWrite('?OUTPUT,' + z.ID + ',1\r\n');
+                    cmdQueue.push('?OUTPUT,' + z.ID + ',1');
                 }
             });
+            drainQueue();
         }
 
         // Coalesce ~OUTPUT bursts (a dim gesture emits many intermediate floats):
@@ -329,6 +349,7 @@ module.exports = function (RED) {
         node.on('close', function (done) {
             closing = true;
             clearReconnect();
+            if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
             outputTimers.forEach(function (t) { clearTimeout(t); });
             outputTimers.clear();
             cmdQueue.length = 0;

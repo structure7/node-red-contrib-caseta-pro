@@ -7,6 +7,7 @@
             port:    { value: 23, required: true, validate: RED.validators.number() },
             username:{ value: 'lutron' },
             password:{ value: 'integration' },
+            sendGapMs:{ value: 50, validate: function (v) { return v === '' || v == null || !isNaN(v); } },
             integrationReport: { value: '' },
             names:   { value: '' }   // JSON: { zones:{id:name}, devices:{id:name} }
         },
@@ -170,6 +171,12 @@
                 <label for="node-config-input-password"><i class="fa fa-lock"></i> Password</label>
                 <input type="password" id="node-config-input-password" placeholder="integration">
             </div>
+            <div class="form-row">
+                <label for="node-config-input-sendGapMs"><i class="fa fa-clock-o"></i> Cmd spacing</label>
+                <input type="text" id="node-config-input-sendGapMs" placeholder="50" style="width:80px">
+                <span style="color:var(--red-ui-secondary-text-color,#888)">ms between outbound
+                    commands (anti-flood). 0 = no spacing.</span>
+            </div>
             <div class="form-row" style="margin-bottom:0">
                 <label for="node-config-input-integrationReport" style="vertical-align:top">
                     <i class="fa fa-file-text-o"></i> Integration<br>Report
@@ -212,6 +219,10 @@
         <dt>Port</dt><dd>Default <code>23</code>.</dd>
         <dt>Username / Password</dt><dd>Lutron's LAN defaults
             <code>lutron</code> / <code>integration</code>.</dd>
+        <dt>Cmd spacing</dt><dd>Minimum milliseconds between outbound commands (default
+            <code>50</code>). All commands from every <code>caseta-out</code> node and the
+            connect-time seeding share one paced queue, so bursts never flood the bridge.
+            Set <code>0</code> to disable spacing.</dd>
         <dt>Integration Report</dt><dd>Paste the JSON from Lutron's emailed integration
             report. Used to seed current zone levels on connect and to populate the Names tab.</dd>
     </dl>

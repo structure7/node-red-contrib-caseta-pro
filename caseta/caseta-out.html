@@ -33,13 +33,17 @@
     output &mdash; the resulting <code>~OUTPUT</code> echo arrives through a
     <code>caseta-in</code> node.</p>
     <h3>Input</h3>
-    <p><code>msg.payload</code>:</p>
+    <p><code>msg.payload</code> is either one command object, or an <b>array</b> of them to
+    drive several zones from a single message (a scene):</p>
     <ul>
         <li><code>id</code> &mdash; zone / OUTPUT id <b>(required)</b></li>
         <li><code>level</code> &mdash; 0&ndash;100 <b>(required)</b>; 0 = off, 100 = full</li>
         <li><code>fade</code> &mdash; optional fade time in seconds (or <code>"HH:MM:SS"</code>)</li>
         <li><code>delay</code> &mdash; optional delay in seconds (requires <code>fade</code>)</li>
     </ul>
+    <p>With an array, commands are handed to the bridge in order and paced by its
+    <b>Cmd spacing</b> setting so the hub isn't flooded. Items missing <code>id</code>/<code>level</code>
+    are skipped (with a warning); the rest still send.</p>
     <p>Builds <code>#OUTPUT,&lt;id&gt;,1,&lt;level&gt;[,&lt;fade&gt;[,&lt;delay&gt;]]</code>.
     The node status mirrors the bridge connection and briefly flashes each command sent.</p>
     <h3>Examples</h3>
@@ -48,7 +52,9 @@
 {"id": 6, "level": 100}            // full on
 {"id": 6, "level": 50}             // 50%
 {"id": 6, "level": 0, "fade": 3}   // fade off over 3 s
-{"id": 6, "level": 75, "fade": "00:00:02", "delay": 1}</pre>
+{"id": 6, "level": 75, "fade": "00:00:02", "delay": 1}
+
+[{"id": 2, "level": 50}, {"id": 6, "level": 50}]   // scene: several zones at once</pre>
     <p>From a function node, send the object (not a string):</p>
     <pre>msg.payload = { id: 6, level: 0 };
 return msg;</pre>

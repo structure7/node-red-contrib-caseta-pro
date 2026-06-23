@@ -28,28 +28,47 @@ module.exports = function (RED) {
             }, 1500);
         }
 
+        // Build "#OUTPUT,<id>,1,<level>[,<fade>[,<delay>]]" from one item, or null if invalid.
+        function buildCmd(it) {
+            if (!it || it.id == null || it.level == null) { return null; }
+            let cmd = '#OUTPUT,' + it.id + ',1,' + it.level;
+            if (it.fade != null) {
+                cmd += ',' + it.fade;
+                if (it.delay != null) { cmd += ',' + it.delay; }
+            } else if (it.delay != null) {
+                node.warn('caseta-out: delay ignored for id ' + it.id + ' — needs a fade value too');
+            }
+            return cmd;
+        }
+
         node.on('input', function (msg, send, done) {
-            const p = msg.payload || {};
-            // id may legitimately be 0? Zone IDs start at 1, but guard on null/undefined only.
-            if (p.id == null || p.level == null) {
-                node.error('caseta-out: msg.payload must include { id, level }', msg);
+            // Accept a single { id, level, ... } or an array of them. The bridge paces the
+            // whole batch (its Cmd spacing) so a multi-light scene won't flood the hub.
+            const p = msg.payload;
+            const items = Array.isArray(p) ? p : [p];
+
+            const valid = [];
+            let skipped = 0;
+            items.forEach(function (it) {
+                const cmd = buildCmd(it);
+                if (cmd) { valid.push({ cmd: cmd, id: it.id, level: it.level }); }
+                else { skipped++; }
+            });
+
+            if (valid.length === 0) {
+                node.error('caseta-out: msg.payload must be { id, level } or an array of them', msg);
                 if (done) { done(); }
                 return;
             }
-
-            // #OUTPUT,<id>,1,<level>[,<fade>[,<delay>]]
-            let cmd = '#OUTPUT,' + p.id + ',1,' + p.level;
-            if (p.fade != null) {
-                cmd += ',' + p.fade;
-                if (p.delay != null) {
-                    cmd += ',' + p.delay;
-                }
-            } else if (p.delay != null) {
-                node.warn('caseta-out: delay ignored — it requires a fade value too');
+            if (skipped > 0) {
+                node.warn('caseta-out: skipped ' + skipped + ' item(s) missing id/level');
             }
 
-            bridge.sendCommand(cmd);
-            flashSent('Sent: id ' + p.id + ' → ' + p.level + '%');
+            valid.forEach(function (c) { bridge.sendCommand(c.cmd); });
+
+            flashSent(valid.length === 1 ?
+                ('Sent: id ' + valid[0].id + ' → ' + valid[0].level + '%') :
+                ('Sent ' + valid.length + ' commands'));
             if (done) { done(); }
         });
 
