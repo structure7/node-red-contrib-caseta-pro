@@ -1,0 +1,9 @@
+# Dev dependencies (installed for tests/lint) — never part of the source or the
+# published tarball. The runtime link into Node-RED lives elsewhere (.node-red/).
+node_modules/
+package-lock.json
+
+# Test / build artifacts
+*.tgz
+coverage/
+.nyc_output/

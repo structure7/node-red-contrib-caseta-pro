@@ -3,6 +3,7 @@ module.exports = function (RED) {
 
     const net = require('net');
     const EventEmitter = require('events');
+    const protocol = require('./protocol');
 
     // Login / connection state machine phases
     const PHASE = {
@@ -176,46 +177,14 @@ module.exports = function (RED) {
             }, COALESCE_MS));
         }
 
+        // Parse a cleaned line and dispatch: coalesce 'output' bursts, emit the rest.
         function parseLine(line) {
-            const parts = line.split(',');
-            const head = parts[0];
-
-            if (head === '~OUTPUT') {
-                const id = parseInt(parts[1], 10);
-                const action = parseInt(parts[2], 10);
-                const level = parseFloat(parts[3]);
-                if (action === 1 && !isNaN(id) && !isNaN(level)) {
-                    handleOutput(id, level, line);
-                }
-                return;
-            }
-            if (head === '~DEVICE') {
-                emitEvent({
-                    type: 'device',
-                    id: parseInt(parts[1], 10),
-                    component: parseInt(parts[2], 10),
-                    action: parseInt(parts[3], 10),
-                    raw: line
-                });
-                return;
-            }
-            if (head === '~GROUP') {
-                emitEvent({
-                    type: 'group',
-                    id: parseInt(parts[1], 10),
-                    action: parseInt(parts[2], 10),
-                    state: parseInt(parts[3], 10),
-                    raw: line
-                });
-                return;
-            }
-            if (head === '~ERROR') {
-                emitEvent({ type: 'error', raw: line });
-                return;
-            }
-            // Unrecognised ~-response — surface it rather than drop it silently.
-            if (head.charAt(0) === '~') {
-                emitEvent({ type: 'unknown', raw: line });
+            const evt = protocol.parseLine(line);
+            if (!evt) { return; }
+            if (evt.type === 'output') {
+                handleOutput(evt.id, evt.level, evt.raw);
+            } else {
+                emitEvent(evt);
             }
         }
 
@@ -260,7 +229,7 @@ module.exports = function (RED) {
                 let line = buffer.slice(0, idx);
                 buffer = buffer.slice(idx + 1);
                 // Strip embedded GNET> prompt (can appear mid-line) and control chars.
-                line = line.replace(/GNET>\s*/g, '').replace(/[\r\x00-\x1f]/g, '').trim();
+                line = protocol.cleanLine(line);
                 if (line) {
                     parseLine(line);
                 }

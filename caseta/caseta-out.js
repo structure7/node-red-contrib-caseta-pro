@@ -1,6 +1,8 @@
 module.exports = function (RED) {
     'use strict';
 
+    const protocol = require('./protocol');
+
     function CasetaOutNode(config) {
         RED.nodes.createNode(this, config);
         const node = this;
@@ -28,19 +30,6 @@ module.exports = function (RED) {
             }, 1500);
         }
 
-        // Build "#OUTPUT,<id>,1,<level>[,<fade>[,<delay>]]" from one item, or null if invalid.
-        function buildCmd(it) {
-            if (!it || it.id == null || it.level == null) { return null; }
-            let cmd = '#OUTPUT,' + it.id + ',1,' + it.level;
-            if (it.fade != null) {
-                cmd += ',' + it.fade;
-                if (it.delay != null) { cmd += ',' + it.delay; }
-            } else if (it.delay != null) {
-                node.warn('caseta-out: delay ignored for id ' + it.id + ' — needs a fade value too');
-            }
-            return cmd;
-        }
-
         node.on('input', function (msg, send, done) {
             // Accept a single { id, level, ... } or an array of them. The bridge paces the
             // whole batch (its Cmd spacing) so a multi-light scene won't flood the hub.
@@ -50,7 +39,11 @@ module.exports = function (RED) {
             const valid = [];
             let skipped = 0;
             items.forEach(function (it) {
-                const cmd = buildCmd(it);
+                // A delay without a fade can't be expressed in #OUTPUT — warn (it's dropped).
+                if (protocol.delayWithoutFade(it)) {
+                    node.warn('caseta-out: delay ignored for id ' + it.id + ' — needs a fade value too');
+                }
+                const cmd = protocol.buildCommand(it);
                 if (cmd) { valid.push({ cmd: cmd, id: it.id, level: it.level }); }
                 else { skipped++; }
             });
