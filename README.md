@@ -1,5 +1,8 @@
 # node-red-contrib-caseta-pro
 
+[![CI](https://github.com/structure7/node-red-contrib-caseta-pro/actions/workflows/ci.yml/badge.svg)](https://github.com/structure7/node-red-contrib-caseta-pro/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/node-red-contrib-caseta-pro.svg)](https://www.npmjs.com/package/node-red-contrib-caseta-pro)
+
 Node-RED nodes for controlling and monitoring a **Lutron Caséta Smart Bridge Pro**
 over the Lutron Integration Protocol (LIP) — raw telnet on port 23.
 

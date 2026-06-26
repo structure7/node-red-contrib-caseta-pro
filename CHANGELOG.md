@@ -7,6 +7,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- GitHub Actions CI: lint + test on push/PR across Node 18/20/22.
 - Pure `caseta/protocol.js` module (line parsing, command building, topic) with a
   unit test suite — extracted from the node files so the protocol logic is testable
   without a live bridge.
